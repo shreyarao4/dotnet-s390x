@@ -27,7 +27,7 @@ function backport {
         if [ -e "$commitid" ]; then
             git am "$commitid"
         else
-            git cherry-pick "$commitid"
+            git cherry-pick -X theirs "$commitid"
         fi
         break
     done

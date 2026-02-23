@@ -65,8 +65,8 @@ build_sdk() {
         --use-mono-runtime
         --source-repository "https://github.com/dotnet/dotnet"
         --source-version "$(git -C "$DOTNETDIR" rev-parse HEAD)"
+        --with-system-libs "+zlib+"
         -p:PortableBuild=true
-        -p:UseSystemLibs=all
     )
     if "$CROSS"; then
         sdk_build_flags+=(
@@ -120,7 +120,7 @@ build_sdk() {
     cp ./artifacts/packages/Release/Shipping/runtime/runtime.linux-"$ARCH".Microsoft.NETCore.ILDAsm."$runtime_version".nupkg "$OUTPUTDIR"
     cp ./artifacts/packages/Release/Shipping/runtime/runtime.linux-"$ARCH".Microsoft.NETCore.ILDAsm."$runtime_version".nupkg "$OUTPUTDIR"
     cp ./artifacts/packages/Release/Shipping/aspnetcore/Microsoft.AspNetCore.App.Runtime.linux-"$ARCH"."$runtime_version".nupkg "$OUTPUTDIR"
-    cp ./artifacts/assets/Release/Private.SourceBuilt.Artifacts."$sdk_version"*.linux-"$ARCH".tar.gz "$DOWNLOADDIR"
+    cp ./artifacts/assets/Release/Private.SourceBuilt.Artifacts."$sdk_version"*.linux-"$ARCH".tar.gz "$OUTPUTDIR"
     cp ./prereqs/packages/archive/Private.SourceBuilt.Artifacts.Bootstrap.tar.gz "$PACKAGESDIR"
     popd
 }

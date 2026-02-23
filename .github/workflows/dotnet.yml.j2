@@ -10,10 +10,14 @@ on:
     - main
     tags:
     - 'v*'
-  pull_request:
+  workflow_run:
+    workflows: ["toolchain"]
+    types: [completed]
 
 permissions:
   packages: read
+  actions: read
+  checks: write
   contents: write
 
 {#-
@@ -49,6 +53,9 @@ EXEC : error : Failed to load assembly 'System.Private.CoreLib'
            git config --global user.name "dotnet-s390x bot"
     - name: Checkout dotnet-s390x
       uses: actions/checkout@v4
+      with:
+        repository: {% raw %}${{ github.event.workflow_run.head_repository.full_name || github.repository }}{% endraw %}
+        ref: {% raw %}${{ github.event.workflow_run.head_sha || github.sha }}{% endraw %}
     - name: Login to GitHub Container Registry
       uses: docker/login-action@v3
       with:
@@ -63,9 +70,25 @@ jobs:
     {%- if i != 0 %}
     needs: {{ projects[i - 1] }}
     {%- endif %}
+    if: {% raw %}${{ github.event_name == 'push' || (github.event_name == 'workflow_run' && github.event.workflow_run.event == 'pull_request' && github.event.workflow_run.conclusion == 'success') }}{% endraw %}
     runs-on: ubuntu-latest
     {{ matrix }}
     steps:
+    - name: Create check run
+      if: {% raw %}${{ github.event_name == 'workflow_run' }}{% endraw %}
+      id: check
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const { data } = await github.rest.checks.create({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            name: '{{ projects[i] }} ({% raw %}${{ matrix.arch }}, ${{ matrix.isV6 }}{% endraw %})',
+            head_sha: '{% raw %}${{ github.event.workflow_run.head_sha }}{% endraw %}',
+            status: 'in_progress',
+            details_url: `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+          });
+          return data.id;
     {{ init_steps }}
     {%- if i != 0 %}
     - name: Download the previous stage's artifacts
@@ -78,9 +101,19 @@ jobs:
         sudo apt-get update
         sudo apt-get install -y quilt
     - name: Prepare
-      run: ./dotnet-prepare 
+      run: ./dotnet-prepare
+    - name: Download toolchain image artifact
+      if: {% raw %}${{ github.event_name == 'workflow_run' }}{% endraw %}
+      uses: actions/download-artifact@v4
+      with:
+        name: toolchain-image-{% raw %}${{ matrix.arch }}{% endraw %}
+        github-token: {% raw %}${{ secrets.GITHUB_TOKEN }}{% endraw %}
+        run-id: {% raw %}${{ github.event.workflow_run.id }}{% endraw %}
+    - name: Load toolchain image
+      if: {% raw %}${{ github.event_name == 'workflow_run' }}{% endraw %}
+      run: docker load -i toolchain-image.tar
     - name: Build
-      run: ARCH={% raw %}${{ matrix.arch }}{% endraw %} ./docker/run-image {{ image }} ./dotnet-build 
+      run: ARCH={% raw %}${{ matrix.arch }}{% endraw %} ./docker/run-image {{ image }} ./dotnet-build
     - name: Upload the intermediate results
       uses: actions/upload-artifact@v4
       with:
@@ -89,6 +122,18 @@ jobs:
           local-downloads/
           local-packages/
           output/
+    - name: Update check run
+      if: {% raw %}${{ always() && github.event_name == 'workflow_run' }}{% endraw %}
+      uses: actions/github-script@v7
+      with:
+        script: |
+          await github.rest.checks.update({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            check_run_id: {% raw %}${{ steps.check.outputs.result }}{% endraw %},
+            status: 'completed',
+            conclusion: '{% raw %}${{ job.status }}{% endraw %}',
+          });
 {%- endfor %}
   release:
     needs: sdk
