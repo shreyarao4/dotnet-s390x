@@ -63,10 +63,10 @@ build_sdk() {
         --source-only
         --configuration Release
         --use-mono-runtime
+        --with-system-libs "+zlib+"
         --source-repository "https://github.com/dotnet/dotnet"
         --source-version "$(git -C "$DOTNETDIR" rev-parse HEAD)"
         -p:PortableBuild=true
-        -p:UseSystemLibs=all
     )
     if "$CROSS"; then
         sdk_build_flags+=(

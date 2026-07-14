@@ -62,6 +62,7 @@ function prepare_sdk {
     else
         git fetch origin main
         backport "" e64f84d
+        backport 58d1b48 eb2c106
     fi
     popd
 }
